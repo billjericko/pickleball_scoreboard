@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pickleball Scoreboard Overlay</title>
+<style>
+  :root{--orange:#ff7a00;--purple:#14062e;--purple2:#241046;--black:#000}
+  html,body{height:100%;margin:0;overflow:hidden;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:transparent}
+  body.bg{background:radial-gradient(ellipse at 50% 30%,#2e1066 0%,#14062e 45%,#000 100%)}
+  #stage{position:absolute;left:0;top:0;width:560px;transform-origin:0 0;color:#fff}
+  #sb{border-radius:14px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,122,0,.65),0 10px 40px rgba(0,0,0,.6),0 0 40px rgba(255,122,0,.18)}
+  .hd{display:flex;justify-content:space-between;align-items:center;background:var(--black);border-bottom:2px solid var(--orange);padding:7px 16px;font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+  .call{font-variant-numeric:tabular-nums;color:#fff;letter-spacing:.08em}
+  .row{display:flex;align-items:stretch;background:linear-gradient(90deg,var(--purple2),var(--purple));height:78px;border-top:1px solid rgba(255,122,0,.18)}
+  .row:first-child{border-top:0}
+  .bar{width:10px;flex:none}
+  .names{flex:1;min-width:0;padding:8px 14px;display:flex;flex-direction:column;justify-content:center}
+  .team{font-size:26px;font-weight:800;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl{font-size:16px;color:#d6c8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .srv{width:44px;display:flex;align-items:center;justify-content:center;flex:none}
+  .ball{width:28px;height:28px;border-radius:50%;background:var(--orange);color:#000;font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(255,122,0,.85)}
+  .games{width:58px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;background:rgba(0,0,0,.45);color:var(--orange);flex:none}
+  .score{width:92px;display:flex;align-items:center;justify-content:center;font-size:56px;font-weight:900;font-variant-numeric:tabular-nums;background:var(--orange);color:#000;flex:none}
+  .bump{animation:bump .35s ease}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
+  .hide{display:none!important}
+  #fs{position:fixed;top:10px;right:10px;background:rgba(0,0,0,.6);color:var(--orange);border:1px solid var(--orange);border-radius:8px;padding:6px 10px;font:700 14px sans-serif;cursor:pointer;opacity:0;transition:opacity .2s}
+  #fs:hover{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="sb">
+    <div class="hd"><span id="title"></span><span class="call" id="call"></span></div>
+    <div id="rows"></div>
+  </div>
+</div>
+<button id="fs" title="Toggle full screen (or double-click)">⛶ Full screen</button>
+<script>
+const K='pb_state_v2';
+const def={title:'Pickleball',showServe:true,showGames:true,showCall:true,showBg:true,layout:'full',serving:0,server:2,
+  t:[{name:'Team A',p:['Player 1','Player 2'],score:0,games:0,color:'#ff7a00'},
+     {name:'Team B',p:['Player 3','Player 4'],score:0,games:0,color:'#8b5cf6'}]};
+function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(K)))}catch(e){return def}}
+let last=null;
+function fit(){
+  const st=document.getElementById('stage'),S=last||load();
+  const W=innerWidth,H=innerHeight,bw=560,bh=st.offsetHeight||190;
+  let s,x,y;
+  if(S.layout==='corner'){s=Math.min(W*.36/bw,H*.3/bh);x=W*.025;y=H-bh*s-H*.04}
+  else{s=Math.min(W*.88/bw,H*.82/bh);x=(W-bw*s)/2;y=(H-bh*s)/2}
+  st.style.transform='translate('+x+'px,'+y+'px) scale('+s+')';
+}
+function render(){
+  const S=load();
+  document.body.classList.toggle('bg',!!S.showBg);
+  document.getElementById('title').textContent=S.title;
+  const call=document.getElementById('call');
+  call.classList.toggle('hide',!S.showCall);
+  const a=S.serving,b=1-a;
+  call.textContent=S.t[a].score+' - '+S.t[b].score+' - '+S.server;
+  const rows=document.getElementById('rows');
+  if(!rows.children.length){
+    for(let i=0;i<2;i++){
+      const r=document.createElement('div');r.className='row';
+      r.innerHTML='<div class="bar"></div><div class="names"><div class="team"></div><div class="pl"></div></div><div class="srv"></div><div class="games"></div><div class="score"></div>';
+      rows.appendChild(r);
+    }
+  }
+  S.t.forEach((t,i)=>{
+    const r=rows.children[i];
+    r.querySelector('.bar').style.background=t.color;
+    r.querySelector('.team').textContent=t.name;
+    r.querySelector('.pl').textContent=t.p.filter(Boolean).join('  /  ');
+    const sv=r.querySelector('.srv');
+    sv.innerHTML=(S.showServe&&S.serving===i)?'<div class="ball">'+S.server+'</div>':'';
+    sv.classList.toggle('hide',!S.showServe);
+    const g=r.querySelector('.games');g.textContent=t.games;g.classList.toggle('hide',!S.showGames);
+    const sc=r.querySelector('.score');
+    if(last&&last.t[i].score!==t.score){sc.classList.remove('bump');void sc.offsetWidth;sc.classList.add('bump')}
+    sc.textContent=t.score;
+  });
+  last=S;
+  fit();
+}
+function toggleFS(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen().catch(()=>{})}
+document.getElementById('fs').onclick=toggleFS;
+document.addEventListener('dblclick',toggleFS);
+addEventListener('resize',fit);
+render();
+addEventListener('storage',render);
+try{new BroadcastChannel('pb_channel').onmessage=render}catch(e){}
+setInterval(render,500);
+</script>
+</body>
+</html>
